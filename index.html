@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARG メモ帳</title>
+  <style>
+    * { box-sizing: border-box; font-family: sans-serif; margin: 0; padding: 0; }
+    body { background-color: #121212; color: #e0e0e0; padding: 16px; }
+    h1 { font-size: 1.2rem; margin-bottom: 12px; color: #00ffcc; text-align: center; }
+    
+    /* 入力パーツの共通スタイル */
+    input, select, button {
+      padding: 10px; border-radius: 6px; border: 1px solid #333;
+      background: #1e1e1e; color: #fff; font-size: 14px; width: 100%;
+    }
+    button { cursor: pointer; font-weight: bold; }
+    
+    /* セクションエリア */
+    .section-box {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      padding: 12px; margin-bottom: 16px;
+    }
+    .section-title { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+
+    /* ファイル選択・操作エリア */
+    .file-controls { display: flex; flex-direction: column; gap: 8px; }
+    .row { display: flex; gap: 8px; }
+    
+    /* ボタンの色 */
+    .btn-main { background: #00ffcc; color: #000; border: none; }
+    .btn-sub { background: #333; color: #00ffcc; border: 1px solid #00ffcc; }
+    .btn-edit { background: #2979ff; color: #fff; border: none; }
+    .btn-danger { background: #ff5252; color: #fff; border: none; }
+    .btn-cancel { background: #555; color: #fff; border: none; }
+    
+    /* リスト表示エリア */
+    .list-item {
+      background: #1e1e1e; padding: 12px; border-radius: 6px;
+      margin-bottom: 8px; border-left: 4px solid #00ffcc; word-break: break-all;
+    }
+    .list-item a { color: #80d8ff; text-decoration: none; display: block; margin-top: 4px; }
+    .item-btns { display: flex; gap: 8px; margin-top: 8px; }
+    .item-btns button { font-size: 12px; padding: 6px; }
+
+    /* 編集フォーム（初期状態は非表示） */
+    .edit-form { display: none; margin-top: 8px; flex-direction: column; gap: 8px; background: #252525; padding: 8px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+
+  <h1>📂 ARG Keyword & URL Keeper</h1>
+
+  <div class="section-box">
+    <div class="section-title">📂 ファイル選択 / 操作</div>
+    <div class="file-controls">
+      <select id="fileSelect" onchange="renderItems()"></select>
+      
+      <div class="row">
+        <input type="text" id="newFileNameInput" placeholder="新しいファイル名">
+        <button class="btn-sub" style="width: auto; whitespace: nowrap;" onclick="createNewFile()">作成</button>
+      </div>
+
+      <div class="row">
+        <input type="text" id="renameFileInput" placeholder="選択中ファイルの新名称">
+        <button class="btn-sub" style="width: auto; whitespace: nowrap;" onclick="renameCurrentFile()">変更</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-box">
+    <div class="section-title">📝 単語・URLの保存</div>
+    <div class="file-controls">
+      <input type="text" id="wordInput" placeholder="単語・キーワード（例: 伏線A）">
+      <input type="url" id="urlInput" placeholder="URL（任意: https://...）">
+      <button class="btn-main" onclick="addItem()">保存する</button>
+    </div>
+  </div>
+
+  <div id="itemList"></div>
+
+  <script>
+    // データ初期化
+    let data = JSON.parse(localStorage.getItem('arg_data')) || { "メインファイル": [] };
+
+    function init() {
+      updateFileSelect();
+      renderItems();
+    }
+
+    // セレクトボックスの更新
+    function updateFileSelect() {
+      const select = document.getElementById('fileSelect');
+      const currentVal = select.value;
+      select.innerHTML = '';
+
+      const fileNames = Object.keys(data);
+      if (fileNames.length === 0) {
+        data["メインファイル"] = [];
+        fileNames.push("メインファイル");
+      }
+
+      fileNames.forEach(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+      });
+
+      if (currentVal && data[currentVal]) {
+        select.value = currentVal;
+      }
+    }
+
+    // 新しいファイルを作成
+    function createNewFile() {
+      const input = document.getElementById('newFileNameInput');
+      const fileName = input.value.trim();
+
+      if (!fileName) return alert('ファイル名を入力してください');
+      if (data[fileName]) return alert('同じ名前のファイルが既にあります');
+
+      data[fileName] = [];
+      saveData();
+      input.value = '';
+      updateFileSelect();
+      document.getElementById('fileSelect').value = fileName;
+      renderItems();
+    }
+
+    // ファイル名を変更
+    function renameCurrentFile() {
+      const select = document.getElementById('fileSelect');
+      const oldName = select.value;
+      const input = document.getElementById('renameFileInput');
+      const newName = input.value.trim();
+
+      if (!oldName) return;
+      if (!newName) return alert('新しい名前を入力してください');
+      if (data[newName]) return alert('同じ名前のファイルが既にあります');
+
+      data[newName] = data[oldName];
+      delete data[oldName];
+
+      saveData();
+      input.value = '';
+      updateFileSelect();
+      select.value = newName;
+      renderItems();
+    }
+
+    // アイテム（単語・URL）の追加
+    function addItem() {
+      const currentFile = document.getElementById('fileSelect').value;
+      const wordInput = document.getElementById('wordInput');
+      const urlInput = document.getElementById('urlInput');
+      const word = wordInput.value.trim();
+      const url = urlInput.value.trim();
+
+      if (!word && !url) return alert('単語またはURLを入力してください');
+
+      data[currentFile].push({ word, url, id: Date.now() });
+      saveData();
+
+      wordInput.value = '';
+      urlInput.value = '';
+      renderItems();
+    }
+
+    // 編集フォームの開閉
+    function toggleEditForm(id) {
+      const form = document.getElementById(`edit-form-${id}`);
+      if (form) {
+        form.style.display = form.style.display === 'flex' ? 'none' : 'flex';
+      }
+    }
+
+    // アイテムの保存（編集確定）
+    function saveEditItem(id) {
+      const currentFile = document.getElementById('fileSelect').value;
+      const item = data[currentFile].find(i => i.id === id);
+      if (!item) return;
+
+      const newWord = document.getElementById(`edit-word-${id}`).value.trim();
+      const newUrl = document.getElementById(`edit-url-${id}`).value.trim();
+
+      item.word = newWord;
+      item.url = newUrl;
+
+      saveData();
+      renderItems();
+    }
+
+    // アイテムの削除
+    function deleteItem(id) {
+      const currentFile = document.getElementById('fileSelect').value;
+      data[currentFile] = data[currentFile].filter(item => item.id !== id);
+      saveData();
+      renderItems();
+    }
+
+    // 画面の再描画
+    function renderItems() {
+      const currentFile = document.getElementById('fileSelect').value;
+      const listContainer = document.getElementById('itemList');
+      listContainer.innerHTML = '';
+
+      if (!currentFile || !data[currentFile] || data[currentFile].length === 0) {
+        listContainer.innerHTML = '<p style="color: #666; text-align: center; margin-top: 20px;">データがありません</p>';
+        return;
+      }
+
+      data[currentFile].forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+          ${item.word ? `<strong>${escapeHtml(item.word)}</strong>` : ''}
+          ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.url)}</a>` : ''}
+          
+          <div class="item-btns">
+            <button class="btn-edit" onclick="toggleEditForm(${item.id})">✏️ 編集</button>
+            <button class="btn-danger" onclick="deleteItem(${item.id})">🗑️ 削除</button>
+          </div>
+
+          <div id="edit-form-${item.id}" class="edit-form">
+            <input type="text" id="edit-word-${item.id}" value="${escapeHtml(item.word || '')}" placeholder="単語">
+            <input type="url" id="edit-url-${item.id}" value="${escapeHtml(item.url || '')}" placeholder="URL">
+            <div class="row">
+              <button class="btn-main" onclick="saveEditItem(${item.id})">更新</button>
+              <button class="btn-cancel" onclick="toggleEditForm(${item.id})">キャンセル</button>
+            </div>
+          </div>
+        `;
+        listContainer.appendChild(div);
+      });
+    }
+
+    // LocalStorage保存
+    function saveData() {
+      localStorage.setItem('arg_data', JSON.stringify(data));
+    }
+
+    // エスケープ処理
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match]));
+    }
+
+    init();
+  </script>
+</body>
+</html>
