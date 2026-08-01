@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARG メモ帳</title>
+  <style>
+    * { box-sizing: border-box; font-family: sans-serif; margin: 0; padding: 0; }
+    body { background-color: #121212; color: #e0e0e0; padding: 16px; }
+    h1 { font-size: 1.2rem; margin-bottom: 12px; color: #00ffcc; text-align: center; }
+    
+    /* ファイル選択エリア */
+    .file-selector { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+    select, input, button {
+      padding: 10px; border-radius: 6px; border: 1px solid #333;
+      background: #1e1e1e; color: #fff; font-size: 14px;
+    }
+    select { flex: 1; min-width: 140px; }
+    
+    /* ボタンの共通スタイル */
+    button.btn-sub { background: #333; color: #ccc; font-size: 12px; }
+    button.add-btn { background: #00ffcc; color: #000; font-weight: bold; border: none; cursor: pointer; }
+    
+    /* 入力フォーム */
+    .input-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    
+    /* リスト表示エリア */
+    .list-item {
+      background: #1e1e1e; padding: 12px; border-radius: 6px;
+      margin-bottom: 8px; border-left: 4px solid #00ffcc;
+      word-break: break-all; position: relative;
+    }
+    .list-item a { color: #80d8ff; text-decoration: none; display: block; margin-top: 4px; }
+    .action-btns {
+      position: absolute; right: 8px; top: 8px; display: flex; gap: 6px;
+    }
+    .action-btns button {
+      background: transparent; border: none; font-size: 12px; cursor: pointer; padding: 2px 4px;
+    }
+    .edit-btn { color: #80d8ff; }
+    .delete-btn { color: #ff5252; }
+  </style>
+</head>
+<body>
+
+  <h1>📂 ARG Keyword & URL Keeper</h1>
+
+  <div class="file-selector">
+    <select id="fileSelect" onchange="renderItems()"></select>
+    <button class="btn-sub" onclick="createNewFile()">＋追加</button>
+    <button class="btn-sub" onclick="renameCurrentFile()">✏️名前変更</button>
+  </div>
+
+  <div class="input-form">
+    <input type="text" id="wordInput" placeholder="単語・キーワード（例: 伏線A）">
+    <input type="url" id="urlInput" placeholder="URL（任意: https://...）">
+    <button class="add-btn" onclick="addItem()">保存する</button>
+  </div>
+
+  <div id="itemList"></div>
+
+  <script>
+    // 初期データ構造の読み込み（LocalStorage）
+    let data = JSON.parse(localStorage.getItem('arg_data')) || { "ファイル1": [] };
+
+    // 初期化処理
+    function init() {
