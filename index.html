@@ -9,14 +9,13 @@
     body { background-color: #121212; color: #e0e0e0; padding: 16px; }
     h1 { font-size: 1.2rem; margin-bottom: 16px; color: #00ffcc; text-align: center; }
     
-    input, select, button {
+    input, select, button, textarea {
       padding: 10px; border-radius: 6px; border: 1px solid #333;
       background: #1e1e1e; color: #fff; font-size: 14px; width: 100%;
     }
     button { cursor: pointer; font-weight: bold; }
     .btn-main { background: #00ffcc; color: #000; border: none; }
     .btn-sub { background: #333; color: #00ffcc; border: 1px solid #00ffcc; }
-    .btn-save { background: #ff9100; color: #000; border: none; }
     .btn-danger { background: #ff5252; color: #fff; border: none; }
     
     .card {
@@ -27,36 +26,288 @@
     .row { display: flex; gap: 8px; }
     .col { display: flex; flex-direction: column; gap: 8px; }
 
+    /* 画面切り替え用 */
+    #auth-screen, #app-screen { display: none; }
+    
     .list-item {
       background: #1e1e1e; padding: 12px; border-radius: 6px;
       margin-bottom: 8px; border-left: 4px solid #00ffcc; word-break: break-all;
     }
     .list-item a { color: #80d8ff; text-decoration: none; display: block; margin-top: 4px; }
+    .user-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .user-name { font-size: 14px; color: #00ffcc; }
+
+    textarea { resize: vertical; min-height: 60px; font-family: monospace; font-size: 12px; }
   </style>
 </head>
 <body>
 
   <h1>📂 ARG Keyword & URL Keeper</h1>
 
-  <div class="card">
-    <div class="card-title">📂 ファイル選択 / 新規作成</div>
+  <div id="auth-screen" class="card">
+    <div class="card-title">🔐 ログイン / アカウント作成</div>
     <div class="col">
-      <select id="fileSelect" onchange="renderItems()"></select>
-      <div class="row">
-        <input type="text" id="newFileName" placeholder="新しいファイル名">
-        <button class="btn-sub" style="width:auto;" onclick="createNewFile()">作成</button>
+      <input type="text" id="auth-username" placeholder="ユーザー名">
+      <input type="password" id="auth-password" placeholder="パスワード">
+      <button class="btn-main" onclick="handleLogin()">ログイン</button>
+      <button class="btn-sub" onclick="handleSignUp()">新規アカウント登録</button>
+    </div>
+  </div>
+
+  <div id="app-screen">
+    <div class="user-bar">
+      <span class="user-name" id="display-username"></span>
+      <button class="btn-sub" style="width:auto; padding:6px 12px; font-size:12px;" onclick="handleLogout()">ログアウト</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📂 ファイル選択 / 新規作成</div>
+      <div class="col">
+        <select id="fileSelect" onchange="renderItems()"></select>
+        <div class="row">
+          <input type="text" id="newFileName" placeholder="新しいファイル名">
+          <button class="btn-sub" style="width:auto;" onclick="createNewFile()">作成</button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div class="card">
-    <div class="card-title">📝 データ登録（自動保存されます）</div>
-    <div class="col">
-      <input type="text" id="wordInput" placeholder="目印となる単語（例: 伏線キーワードA）">
-      <input type="url" id="urlInput" placeholder="URL（例: https://...）">
-      <button class="btn-main" onclick="addItem()">保存する</button>
+    <div class="card">
+      <div class="card-title">📝 データ登録（単語とURLの両方が必須）</div>
+      <div class="col">
+        <input type="text" id="wordInput" placeholder="目印となる単語（例: 伏線キーワードA）">
+        <input type="url" id="urlInput" placeholder="URL（例: https://...）">
+        <button class="btn-main" onclick="addItem()">保存する</button>
+      </div>
     </div>
+
+    <div class="card">
+      <div class="card-title">💾 異ブラウザ移行（セーブコードの入出力）</div>
+      <div class="col">
+        <button class="btn-sub" onclick="exportSaveData()">セーブコードを出力（コピー）</button>
+        <textarea id="transferCodeInput" placeholder="ここにセーブコードを貼り付けて「読み込む」を押すとデータが同期されます"></textarea>
+        <button class="btn-main" onclick="importSaveData()">セーブコードを読み込む</button>
+      </div>
+    </div>
+
+    <div id="itemList"></div>
   </div>
 
-  <div class="card">
-    <div class="card-title">💾 別のブラウザへ移動（クッキークリッカー方式）
+  <script>
+    // ブラウザ内データベースの取得（自動保存用）
+    let usersData = JSON.parse(localStorage.getItem('arg_local_users')) || {};
+    let currentUser = localStorage.getItem('arg_current_user') || null;
+
+    // 初期起動時の画面判定
+    function init() {
+      if (currentUser && usersData[currentUser]) {
+        showAppScreen();
+      } else {
+        showAuthScreen();
+      }
+    }
+
+    // --- 認証機能 ---
+    function handleSignUp() {
+      const u = document.getElementById('auth-username').value.trim();
+      const p = document.getElementById('auth-password').value.trim();
+
+      if (!u || !p) return alert('ユーザー名とパスワードの両方を入力してください');
+      if (usersData[u]) return alert('そのユーザー名は既に登録されています');
+
+      usersData[u] = {
+        password: p,
+        files: { "メインファイル": [] }
+      };
+
+      saveAllData();
+      currentUser = u;
+      localStorage.setItem('arg_current_user', u);
+      alert('登録が完了しました！');
+      showAppScreen();
+    }
+
+    function handleLogin() {
+      const u = document.getElementById('auth-username').value.trim();
+      const p = document.getElementById('auth-password').value.trim();
+
+      if (!u || !p) return alert('ユーザー名とパスワードを入力してください');
+      if (!usersData[u] || usersData[u].password !== p) {
+        return alert('ユーザー名またはパスワードが違います');
+      }
+
+      currentUser = u;
+      localStorage.setItem('arg_current_user', u);
+      showAppScreen();
+    }
+
+    function handleLogout() {
+      currentUser = null;
+      localStorage.removeItem('arg_current_user');
+      document.getElementById('auth-username').value = '';
+      document.getElementById('auth-password').value = '';
+      showAuthScreen();
+    }
+
+    function showAuthScreen() {
+      document.getElementById('auth-screen').style.display = 'block';
+      document.getElementById('app-screen').style.display = 'none';
+    }
+
+    function showAppScreen() {
+      document.getElementById('auth-screen').style.display = 'none';
+      document.getElementById('app-screen').style.display = 'block';
+      document.getElementById('display-username').textContent = currentUser + ' さん';
+      updateFileSelect();
+      renderItems();
+    }
+
+    // --- メモ機能の操作 ---
+    function createNewFile() {
+      const name = document.getElementById('newFileName').value.trim();
+      if (!name) return alert('ファイル名を入力してください');
+      
+      let userFiles = usersData[currentUser].files;
+      if (userFiles[name]) return alert('同名のファイルが存在します');
+
+      userFiles[name] = [];
+      saveAllData();
+      document.getElementById('newFileName').value = '';
+      updateFileSelect();
+      document.getElementById('fileSelect').value = name;
+      renderItems();
+    }
+
+    function addItem() {
+      const currentFile = document.getElementById('fileSelect').value;
+      const word = document.getElementById('wordInput').value.trim();
+      const url = document.getElementById('urlInput').value.trim();
+
+      if (!word || !url) return alert('「目印単語」と「URL」の両方を入力してください');
+
+      let userFiles = usersData[currentUser].files;
+      if (!userFiles[currentFile]) userFiles[currentFile] = [];
+
+      userFiles[currentFile].push({ word, url, id: Date.now() });
+      saveAllData(); // 自動保存を実行
+
+      document.getElementById('wordInput').value = '';
+      document.getElementById('urlInput').value = '';
+      renderItems();
+    }
+
+    function deleteItem(id) {
+      const currentFile = document.getElementById('fileSelect').value;
+      let userFiles = usersData[currentUser].files;
+      userFiles[currentFile] = userFiles[currentFile].filter(i => i.id !== id);
+      saveAllData(); // 自動保存を実行
+      renderItems();
+    }
+
+    function renderItems() {
+      const currentFile = document.getElementById('fileSelect').value;
+      const list = document.getElementById('itemList');
+      list.innerHTML = '';
+
+      const userFiles = usersData[currentUser].files;
+
+      if (!currentFile || !userFiles[currentFile] || userFiles[currentFile].length === 0) {
+        list.innerHTML = '<p style="color:#666; text-align:center;">保存されたデータはありません</p>';
+        return;
+      }
+
+      userFiles[currentFile].forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+          <strong>🔖 目印単語: ${escapeHtml(item.word)}</strong>
+          <a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">🔗 ${escapeHtml(item.url)}</a>
+          <button class="btn-danger" style="margin-top:8px; font-size:12px; padding:4px;" onclick="deleteItem(${item.id})">削除</button>
+        `;
+        list.appendChild(div);
+      });
+    }
+
+    function updateFileSelect() {
+      const select = document.getElementById('fileSelect');
+      const cur = select.value;
+      select.innerHTML = '';
+
+      const userFiles = usersData[currentUser].files;
+
+      Object.keys(userFiles).forEach(f => {
+        const opt = document.createElement('option');
+        opt.value = f; opt.textContent = f;
+        select.appendChild(opt);
+      });
+      if (cur && userFiles[cur]) select.value = cur;
+    }
+
+    // 自動保存処理
+    function saveAllData() {
+      localStorage.setItem('arg_local_users', JSON.stringify(usersData));
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, m => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+    }
+
+    // --- 🎮 セーブコード書き出し & 読み込み機能（クッキークリッカー方式） ---
+    
+    // セーブコードの出力（書き出し）
+    function exportSaveData() {
+      try {
+        const jsonString = JSON.stringify(usersData);
+        // UTF-8文字列を安全にBase64にエンコード
+        const base64Code = btoa(encodeURIComponent(jsonString));
+        
+        // クリップボードへコピー
+        navigator.clipboard.writeText(base64Code).then(() => {
+          alert('セーブコードをクリップボードにコピーしました！\n別のブラウザで「セーブコードを読み込む」欄に貼り付けて使用してください。');
+        }).catch(() => {
+          // コピーに失敗した場合はテキストエリアに表示
+          const textarea = document.getElementById('transferCodeInput');
+          textarea.value = base64Code;
+          alert('セーブコードを発行しました。下の枠から手動でコピーしてください。');
+        });
+      } catch (e) {
+        alert('セーブコードの出力に失敗しました。');
+      }
+    }
+
+    // セーブコードの入力（読み込み）
+    function importSaveData() {
+      const code = document.getElementById('transferCodeInput').value.trim();
+      if (!code) return alert('セーブコードを入力してください');
+
+      if (!confirm('既存のデータが上書き（統合）されます。読み込んでもよろしいですか？')) return;
+
+      try {
+        // Base64からUTF-8文字列へ復元
+        const jsonString = decodeURIComponent(atob(code));
+        const importedData = JSON.parse(jsonString);
+
+        if (typeof importedData !== 'object') throw new Error();
+
+        // 読み込んだデータを現在のデータと統合
+        usersData = { ...usersData, ...importedData };
+        saveAllData(); // 自動保存
+
+        alert('データの読み込みが完了しました！');
+        document.getElementById('transferCodeInput').value = '';
+        
+        // ログイン中のユーザーがいなければ再読み込み・再設定
+        if (currentUser && usersData[currentUser]) {
+          showAppScreen();
+        } else {
+          location.reload();
+        }
+      } catch (e) {
+        alert('無効なセーブコードです。コードが正しくコピーされているか確認してください。');
+      }
+    }
+
+    // アプリ起動
+    init();
+  </script>
+</body>
+</html>
