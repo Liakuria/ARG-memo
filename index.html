@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARG Keeper</title>
+  <style>
+    * { box-sizing: border-box; font-family: sans-serif; margin: 0; padding: 0; }
+    body { background-color: #121212; color: #e0e0e0; padding: 16px; }
+    h1 { font-size: 1.2rem; margin-bottom: 16px; color: #00ffcc; text-align: center; }
+    
+    input, select, button {
+      padding: 10px; border-radius: 6px; border: 1px solid #333;
+      background: #1e1e1e; color: #fff; font-size: 14px; width: 100%;
+    }
+    button { cursor: pointer; font-weight: bold; }
+    .btn-main { background: #00ffcc; color: #000; border: none; }
+    .btn-sub { background: #333; color: #00ffcc; border: 1px solid #00ffcc; }
+    .btn-save { background: #ff9100; color: #000; border: none; }
+    .btn-danger { background: #ff5252; color: #fff; border: none; }
+    
+    .card {
+      background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 8px;
+      padding: 14px; margin-bottom: 16px;
+    }
+    .card-title { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+    .row { display: flex; gap: 8px; }
+    .col { display: flex; flex-direction: column; gap: 8px; }
+
+    .list-item {
+      background: #1e1e1e; padding: 12px; border-radius: 6px;
+      margin-bottom: 8px; border-left: 4px solid #00ffcc; word-break: break-all;
+    }
+    .list-item a { color: #80d8ff; text-decoration: none; display: block; margin-top: 4px; }
+  </style>
+</head>
+<body>
+
+  <h1>📂 ARG Keyword & URL Keeper</h1>
+
+  <div class="card">
+    <div class="card-title">📂 ファイル選択 / 新規作成</div>
+    <div class="col">
+      <select id="fileSelect" onchange="renderItems()"></select>
+      <div class="row">
+        <input type="text" id="newFileName" placeholder="新しいファイル名">
+        <button class="btn-sub" style="width:auto;" onclick="createNewFile()">作成</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📝 データ登録（自動保存されます）</div>
+    <div class="col">
+      <input type="text" id="wordInput" placeholder="目印となる単語（例: 伏線キーワードA）">
+      <input type="url" id="urlInput" placeholder="URL（例: https://...）">
+      <button class="btn-main" onclick="addItem()">保存する</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">💾 別のブラウザへ移動（クッキークリッカー方式）
