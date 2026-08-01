@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARG メモ帳</title>
+  <style>
+    * { box-sizing: border-box; font-family: sans-serif; margin: 0; padding: 0; }
+    body { background-color: #121212; color: #e0e0e0; padding: 16px; }
+    h1 { font-size: 1.2rem; margin-bottom: 12px; color: #00ffcc; text-align: center; }
+    
+    /* ファイル選択エリア */
+    .file-selector { display: flex; gap: 8px; margin-bottom: 16px; }
+    select, input, button {
+      padding: 10px; border-radius: 6px; border: 1px solid #333;
+      background: #1e1e1e; color: #fff; font-size: 14px;
+    }
+    select { flex: 1; }
+    
+    /* 入力フォーム */
+    .input-form { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+    button.add-btn { background: #00ffcc; color: #000; font-weight: bold; border: none; cursor: pointer; }
+    
+    /* リスト表示エリア */
+    .list-item {
+      background: #1e1e1e; padding: 12px; border-radius: 6px;
+      margin-bottom: 8px; border-left: 4px solid #00ffcc;
+      word-break: break-all; position: relative;
+    }
+    .list-item a { color: #80d8ff; text-decoration: none; display: block; margin-top: 4px; }
+    .delete-btn {
+      position: absolute; right: 8px; top: 8px;
+      background: transparent; color: #ff5252; border: none; font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>📂 ARG Keyword & URL Keeper</h1>
+
+  <div class="file-selector">
+    <select id="fileSelect" onchange="renderItems()"></select>
+    <button onclick="createNewFile()">＋ファイル追加</button>
+  </div>
+
+  <div class="input-form">
+    <input type="text" id="wordInput" placeholder="単語・キーワード（例: 伏線A）">
+    <input type="url" id="urlInput" placeholder="URL（任意: https://...）">
+    <button class="add-btn" onclick="addItem()">保存する</button>
+  </div>
+
+  <div id="itemList"></div>
+
+  <script>
+    // 初期データ構造の読み込み（LocalStorage）
+    let data = JSON.parse(localStorage.getItem('arg_data')) || { "ファイル1": [] };
+
+    // 初期化処理
+    function init() {
+      updateFileSelect();
+      renderItems();
+    }
+
+    // ファイル選択ドロップダウンの更新
+    function updateFileSelect() {
+      const select = document.getElementById('fileSelect');
+      select.innerHTML = '';
+      Object.keys(data).forEach(fileName => {
+        const option = document.createElement('option');
+        option.value = fileName;
+        option.textContent = fileName;
+        select.appendChild(option);
+      });
+    }
+
+    // 新しいファイルを作成
+    function createNewFile() {
+      const fileName = prompt('新しいファイル名を入力してください:');
+      if (fileName && !data[fileName]) {
+        data[fileName] = [];
+        saveData();
+        updateFileSelect();
+        document.getElementById('fileSelect').value = fileName;
+        renderItems();
+      }
+    }
+
+    // アイテム（単語・URL）の保存
+    function addItem() {
+      const currentFile = document.getElementById('fileSelect').value;
+      const word = document.getElementById('wordInput').value.trim();
+      const url = document.getElementById('urlInput').value.trim();
+
+      if (!word && !url) return alert('単語またはURLを入力してください');
+
+      data[currentFile].push({ word, url, id: Date.now() });
+      saveData();
+
+      // フォームリセット
+      document.getElementById('wordInput').value = '';
+      document.getElementById('urlInput').value = '';
+      renderItems();
+    }
+
+    // アイテムの削除
+    function deleteItem(id) {
+      const currentFile = document.getElementById('fileSelect').value;
+      data[currentFile] = data[currentFile].filter(item => item.id !== id);
+      saveData();
+      renderItems();
+    }
+
+    // 画面に保存済みデータを表示
+    function renderItems() {
+      const currentFile = document.getElementById('fileSelect').value;
+      const listContainer = document.getElementById('itemList');
+      listContainer.innerHTML = '';
+
+      if (!data[currentFile] || data[currentFile].length === 0) {
+        listContainer.innerHTML = '<p style="color: #666; text-align: center;">データがありません</p>';
+        return;
+      }
+
+      data[currentFile].forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'list-item';
+        div.innerHTML = `
+          <button class="delete-btn" onclick="deleteItem(${item.id})">削除</button>
+          ${item.word ? `<strong>${escapeHtml(item.word)}</strong>` : ''}
+          ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.url)}</a>` : ''}
+        `;
+        listContainer.appendChild(div);
+      });
+    }
+
+    // ローカルストレージにデータを保存
+    function saveData() {
+      localStorage.setItem('arg_data', JSON.stringify(data));
+    }
+
+    // XSS対策用のエスケープ関数
+    function escapeHtml(str) {
+      return str.replace(/[&<>"']/g, match => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[match]));
+    }
+
+    // 起動時の処理実行
+    init();
+  </script>
+</body>
+</html>
